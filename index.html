@@ -363,13 +363,22 @@ body{
 @media (max-width:768px){
   .hero{padding:72px 22px 60px}
   .hero h1{margin-top:20px}
-  .meta{margin-top:34px;flex-direction:column;gap:18px}
-  .meta-item{
-    border-left:none;
-    border-top:1px solid rgba(44,44,44,.10);
-    padding:16px 0 0;
+  .meta{
+    margin-top:30px;
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    border-top:1px solid rgba(44,44,44,.08);
   }
-  .meta-item:first-child{border-top:none;padding-top:0}
+  .meta-item{
+    padding:14px 6px;
+    border-left:1px solid rgba(44,44,44,.08);
+    border-top:none;
+  }
+  .meta-item:first-child{padding-top:14px}
+  .meta-item:nth-child(odd){border-left:none}
+  .meta-item:nth-child(-n+2){border-bottom:1px solid rgba(44,44,44,.08)}
+  .meta-label{font-size:.62rem;margin-bottom:4px;letter-spacing:.16em}
+  .meta-value{font-size:.9rem;line-height:1.5}
   .container{padding:0 16px 72px}
   .day-header{padding:20px 18px;gap:14px}
   .day-number{
@@ -386,6 +395,7 @@ body{
 
 @media (prefers-reduced-motion:reduce){
   *{transition:none!important;animation:none!important}
+  html{scroll-behavior:auto}
   .js .day-card{opacity:1;transform:none}
 }
 </style>
@@ -422,7 +432,7 @@ body{
 <main class="container">
 
   <!-- DAY 1 -->
-  <article class="day-card open">
+  <article class="day-card open" id="day-01">
     <button class="day-header" aria-expanded="true" aria-controls="day1">
       <span class="day-number">DAY 01</span>
       <span class="day-titles">
@@ -506,7 +516,7 @@ body{
   </article>
 
   <!-- DAY 2 -->
-  <article class="day-card">
+  <article class="day-card" id="day-02">
     <button class="day-header" aria-expanded="false" aria-controls="day2">
       <span class="day-number">DAY 02</span>
       <span class="day-titles">
@@ -578,7 +588,7 @@ body{
   </article>
 
   <!-- DAY 3 -->
-  <article class="day-card">
+  <article class="day-card" id="day-03">
     <button class="day-header" aria-expanded="false" aria-controls="day3">
       <span class="day-number">DAY 03</span>
       <span class="day-titles">
@@ -649,7 +659,7 @@ body{
   </article>
 
   <!-- DAY 4 -->
-  <article class="day-card">
+  <article class="day-card" id="day-04">
     <button class="day-header" aria-expanded="false" aria-controls="day4">
       <span class="day-number">DAY 04</span>
       <span class="day-titles">
@@ -733,7 +743,7 @@ body{
   </article>
 
   <!-- DAY 5 -->
-  <article class="day-card">
+  <article class="day-card" id="day-05">
     <button class="day-header" aria-expanded="false" aria-controls="day5">
       <span class="day-number">DAY 05</span>
       <span class="day-titles">
@@ -800,8 +810,8 @@ body{
   </article>
 
   <!-- 行前备忘 -->
-  <article class="day-card">
-    <button class="day-header" aria-expanded="false" aria-controls="notes">
+  <article class="day-card" id="notes">
+    <button class="day-header" aria-expanded="false" aria-controls="notes-body">
       <span class="day-number">NOTES</span>
       <span class="day-titles">
         <span class="day-name">行前备忘 · 待确认与预算</span>
@@ -811,7 +821,7 @@ body{
         <svg width="13" height="8" viewBox="0 0 13 8" fill="none"><path d="M1 1l5.5 5.5L12 1" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </span>
     </button>
-    <div class="day-content" id="notes">
+    <div class="day-content" id="notes-body">
       <div class="day-body">
         <div class="day-body-inner">
 
@@ -882,19 +892,46 @@ body{
   var cards = Array.prototype.slice.call(document.querySelectorAll('.day-card'));
   var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  /* 手风琴：点击展开当前，自动折叠其他 */
+  function cardTop(el) {
+    return el.getBoundingClientRect().top + window.pageYOffset;
+  }
+
+  /* 手风琴：展开当前、收起其他，并把该天标题送到视口顶部 */
   cards.forEach(function (card) {
     var header = card.querySelector('.day-header');
     header.addEventListener('click', function () {
       var isOpen = card.classList.contains('open');
+      var prevOpen = document.querySelector('.day-card.open');
+
+      /* 上方已展开的卡片会收起，先算出它会带走多少高度 */
+      var delta = 0;
+      if (prevOpen && prevOpen !== card) {
+        var inner = prevOpen.querySelector('.day-body-inner');
+        if (inner && cardTop(prevOpen) < cardTop(card)) {
+          delta = inner.getBoundingClientRect().height;
+        }
+      }
+
       cards.forEach(function (other) {
         other.classList.remove('open');
         other.querySelector('.day-header').setAttribute('aria-expanded', 'false');
       });
-      if (!isOpen) {
-        card.classList.add('open');
-        header.setAttribute('aria-expanded', 'true');
-      }
+
+      if (isOpen) return;
+
+      card.classList.add('open');
+      header.setAttribute('aria-expanded', 'true');
+
+      var top = Math.max(0, cardTop(card) - delta - 16);
+      window.scrollTo({ top: top, behavior: reduced ? 'auto' : 'smooth' });
+
+      /* 收起动画结束后校准一次，避免长页面出现偏差 */
+      window.setTimeout(function () {
+        var y = Math.max(0, cardTop(card) - 16);
+        if (Math.abs(window.pageYOffset - y) > 24) {
+          window.scrollTo({ top: y, behavior: reduced ? 'auto' : 'smooth' });
+        }
+      }, 520);
     });
   });
 
