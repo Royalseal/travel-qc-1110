@@ -892,46 +892,49 @@ body{
   var cards = Array.prototype.slice.call(document.querySelectorAll('.day-card'));
   var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  function cardTop(el) {
-    return el.getBoundingClientRect().top + window.pageYOffset;
-  }
+  // Keep native scroll anchoring and smooth scrolling out of accordion layout changes.
+  document.documentElement.style.overflowAnchor = 'none';
+  var reserve = document.createElement('div');
+  reserve.setAttribute('aria-hidden', 'true');
+  document.body.appendChild(reserve);
 
-  /* 手风琴：展开当前、收起其他，并把该天标题送到视口顶部 */
   cards.forEach(function (card) {
     var header = card.querySelector('.day-header');
     header.addEventListener('click', function () {
       var isOpen = card.classList.contains('open');
-      var prevOpen = document.querySelector('.day-card.open');
+      var root = document.documentElement;
+      var previousBehavior = root.style.scrollBehavior;
+      root.style.scrollBehavior = 'auto';
 
-      /* 上方已展开的卡片会收起，先算出它会带走多少高度 */
-      var delta = 0;
-      if (prevOpen && prevOpen !== card) {
-        var inner = prevOpen.querySelector('.day-body-inner');
-        if (inner && cardTop(prevOpen) < cardTop(card)) {
-          delta = inner.getBoundingClientRect().height;
-        }
-      }
-
+      // Finish every previous layout transition before measuring the new title.
       cards.forEach(function (other) {
+        other.querySelector('.day-content').style.transition = 'none';
+        other.style.transitionDelay = '0ms';
+        other.style.transition = 'box-shadow .3s ease';
+        other.classList.add('visible');
         other.classList.remove('open');
         other.querySelector('.day-header').setAttribute('aria-expanded', 'false');
       });
+      reserve.style.height = '0px';
+      void document.body.offsetHeight;
 
-      if (isOpen) return;
+      if (!isOpen) {
+        // Reserve enough page length to align even a short final card at 16px.
+        var top = Math.max(0, header.getBoundingClientRect().top + window.scrollY - 16);
+        reserve.style.height = Math.max(0, top + window.innerHeight - document.documentElement.scrollHeight) + 'px';
+        window.scrollTo({ top: top, behavior: 'instant' });
+      }
 
-      card.classList.add('open');
-      header.setAttribute('aria-expanded', 'true');
-
-      var top = Math.max(0, cardTop(card) - delta - 16);
-      window.scrollTo({ top: top, behavior: reduced ? 'auto' : 'smooth' });
-
-      /* 收起动画结束后校准一次，避免长页面出现偏差 */
-      window.setTimeout(function () {
-        var y = Math.max(0, cardTop(card) - 16);
-        if (Math.abs(window.pageYOffset - y) > 24) {
-          window.scrollTo({ top: y, behavior: reduced ? 'auto' : 'smooth' });
-        }
-      }, 520);
+      // Commit the collapsed state, then expand only below the stationary header.
+      void document.body.offsetHeight;
+      cards.forEach(function (other) {
+        other.querySelector('.day-content').style.transition = '';
+      });
+      if (!isOpen) {
+        card.classList.add('open');
+        header.setAttribute('aria-expanded', 'true');
+      }
+      root.style.scrollBehavior = previousBehavior;
     });
   });
 
